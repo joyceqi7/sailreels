@@ -1,0 +1,22 @@
+{
+  "dev": {
+    "_comment": "clientKey must equal TTMinis.init() in index.html. Get it from Dev Portal (Minis ID).",
+    "clientKey": "mn_example_client_key",
+    "name": "SailReels",
+    "host": "localhost",
+    "port": 5177,
+    "iconUrl": "{{your_icon_url}}",
+    "desc": "SailReels short dramas",
+    "ppLink": "https://sailreels.sailson.com/privacy",
+    "tosLink": "https://sailreels.sailson.com/terms"
+  },
+  "navbar": {
+    "style": "default",
+    "bgColorLight": "#ffffff",
+    "bgColorDark": "#000000"
+  },
+  "build": {
+    "htmlEntry": "index.html",
+    "outputDir": "dist"
+  }
+}

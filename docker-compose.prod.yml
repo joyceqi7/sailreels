@@ -1,0 +1,110 @@
+# Production/staging compose for the shared tt-shop-prod box (203.0.113.10).
+#
+# Differences from docker-compose.yml (local dev) on purpose:
+#   - No host ports at all. Caddy (container tts-caddy, network deploy_backend) is the only
+#     way in, via https://sailreels.sailson.com. Nothing of ours is exposed on the host.
+#   - Memory caps on every service. The box has 7.1G RAM, no swap, and already runs
+#     pubgm-* and tts-*; without caps an overrun would get a neighbour OOM-killed.
+#   - Secrets come from apps/api/.env, which is gitignored and edited by hand on the server.
+#
+# Deploy: docker compose -p sailreels --env-file apps/api/.env -f docker-compose.prod.yml up -d --build
+#   --env-file is required: ${POSTGRES_PASSWORD} below is interpolated by Compose from the shell
+#   environment or a .env next to this file, NOT from the service-level env_file. Pointing Compose at
+#   apps/api/.env keeps a single source of truth for the DB password.
+# See deploy/README.md for the full runbook.
+
+name: sailreels
+
+x-api-env: &api-env
+  DATABASE_URL: postgresql+asyncpg://sailreels:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing — run compose with --env-file apps/api/.env}@db:5432/sailreels
+  REDIS_URL: redis://redis:6379/0
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sailreels
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing — run compose with --env-file apps/api/.env}
+      POSTGRES_DB: sailreels
+    volumes: [pgdata:/var/lib/postgresql/data]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sailreels"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "96mb", "--maxmemory-policy", "noeviction"]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build: { context: ./apps/api }
+    restart: unless-stopped
+    env_file: [./apps/api/.env]
+    environment: *api-env
+    mem_limit: 384m
+    # worker/beat gate on `service_healthy`, so this must exist. The image has no curl (python:3.12-slim);
+    # use urllib. start_period covers `alembic upgrade head`, which runs before uvicorn in the CMD.
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz',timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 90s
+    # Caddy reaches us as sailreels-api:8000 on the shared tt-shop network. The explicit alias is
+    # required: Compose would otherwise register this container as `api` / `sailreels-api-1`, and
+    # deploy_backend already hosts tts-api and pubgm-api — a bare `api` name could resolve to a
+    # neighbour's backend. A unique alias makes the route unambiguous.
+    # Each app's stack must use its own alias (API_ALIAS in that app's .env): two stacks sharing one alias
+    # would make Caddy load-balance webhooks across both apps, and half of them would fail verification.
+    networks:
+      default: {}
+      deploy_backend:
+        aliases: ["${API_ALIAS:-sailreels-api}"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: { context: ./apps/api }
+    restart: unless-stopped
+    env_file: [./apps/api/.env]
+    environment: *api-env
+    command: ["celery", "-A", "app.worker.celery_app:celery_app", "worker",
+              "--loglevel=INFO", "--queues=auth,default", "--concurrency=2"]
+    mem_limit: 320m
+    stop_grace_period: 120s   # let in-flight webhook retries finish
+    depends_on:
+      api: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  beat:
+    build: { context: ./apps/api }
+    restart: unless-stopped
+    env_file: [./apps/api/.env]
+    environment: *api-env
+    command: ["celery", "-A", "app.worker.celery_app:celery_app", "beat",
+              "--loglevel=INFO", "--schedule=/var/lib/celery/beat-schedule"]
+    volumes: [beatdata:/var/lib/celery]
+    mem_limit: 160m
+    stop_grace_period: 30s
+    depends_on:
+      api: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:      # named volumes land on the host disk; keep the DB small
+  beatdata:
+
+networks:
+  # Created and owned by the tt-shop deployment; Caddy sits on it.
+  deploy_backend:
+    external: true

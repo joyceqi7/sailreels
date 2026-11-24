@@ -1,0 +1,68 @@
+# Local dev: `docker compose up -d db redis` then run the API with `uv run uvicorn app.main:app --reload`.
+# Full stack: `docker compose up -d --build`.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: sailreels
+      POSTGRES_PASSWORD: sailreels
+      POSTGRES_DB: sailreels
+    ports: ["55440:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sailreels"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    ports: ["56390:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build: ./apps/api
+    env_file: ./apps/api/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://sailreels:sailreels@db:5432/sailreels
+      REDIS_URL: redis://redis:6379/0
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=5)"]
+      interval: 5s
+      timeout: 6s
+      retries: 20
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  worker:
+    build: ./apps/api
+    env_file: ./apps/api/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://sailreels:sailreels@db:5432/sailreels
+      REDIS_URL: redis://redis:6379/0
+    command: ["celery", "-A", "app.worker.celery_app:celery_app", "worker", "--loglevel=INFO", "--queues=auth,default", "--concurrency=2"]
+    stop_grace_period: 120s
+    depends_on:
+      api: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  beat:
+    build: ./apps/api
+    env_file: ./apps/api/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://sailreels:sailreels@db:5432/sailreels
+      REDIS_URL: redis://redis:6379/0
+    command: ["celery", "-A", "app.worker.celery_app:celery_app", "beat", "--loglevel=INFO", "--schedule=/var/lib/celery/beat-schedule"]
+    volumes: [beatdata:/var/lib/celery]
+    stop_grace_period: 30s
+    depends_on:
+      api: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  beatdata:

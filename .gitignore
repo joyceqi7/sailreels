@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+vite.config.d.ts
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+celerybeat-schedule*
+.env
+.DS_Store
+*.zip

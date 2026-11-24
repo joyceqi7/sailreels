@@ -1,0 +1,45 @@
+{
+  "name": "@sailreels/web",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "minis:debug": "ttdx minis debug",
+    "build": "npm run build:web && ttdx minis build",
+    "build:web": "tsc -b && vite build",
+    "build:sailreels": "tsc -b && vite build --mode sailreels && ttdx minis build",
+    "build:sailtale": "tsc -b && vite build --mode sailtale && ttdx minis build",
+    "build:sailshort": "tsc -b && vite build --mode sailshort && ttdx minis build",
+    "build:minis": "ttdx minis build",
+    "build:minis:sandbox": "ttdx minis build --sandbox",
+    "check:minis:local": "ttdx minis check --local",
+    "check:minis:output": "ttdx minis check --output",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc -b --pretty false",
+    "gen:api": "openapi-typescript ../../docs/openapi/v1.json -o ../../packages/api-types/schema.d.ts",
+    "check:api": "npm run gen:api -- --check",
+    "test": "npm run test:unit && npm run test:api && npm run test:session",
+    "test:unit": "vitest run src",
+    "test:api": "node --test tests/catalog.test.mjs",
+    "test:session": "node --test tests/session.test.mjs"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
+    "@tiktok-minis/cli": "^1.2.0",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.4.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^5.0.3"
+  }
+}

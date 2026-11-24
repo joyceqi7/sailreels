@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#171719" />
+    <title>__VITE_APP_NAME__</title>
+    <link rel="preconnect" href="https://connect.tiktok-minis.com" crossorigin />
+    <link rel="dns-prefetch" href="//connect.tiktok-minis.com" />
+    <link rel="preconnect" href="https://sf-unpkg.bytepluscdn.com" crossorigin />
+    <link rel="dns-prefetch" href="//sf-unpkg.bytepluscdn.com" />
+    <!-- MUST be the first <script> in <head>. Docs use /drama/sdk.js; the official demo pins /test/sdk-07202011.js. -->
+    <script id="minis-sdk" src="https://connect.tiktok-minis.com/drama/sdk.js"></script>
+    <script>
+      // Per-app value from .env.<app>, substituted by vite.config.ts. Must equal minis.config.json for dev.
+      window.TTMinis.init({ clientKey: '__VITE_TIKTOK_CLIENT_KEY__' });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
